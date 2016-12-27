@@ -1,0 +1,43 @@
+version: '2'
+services:
+  # Databaseのコンテナ
+  db:
+    image: mysql:5.7
+    # Mysqlコンテナは以下の環境変数でrootのパスワードを指定できる
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+    # ホストOSの3306番ポートとコンテナ内の3306番ポートを設定
+    ports:
+      - "3306:3306"
+    # ローカルのボリュームとフォルダを共有してしてデータを永続化する
+    volumes:
+      - db-data:/var/lib/mysql
+
+  # railsのコンテナ
+  web:
+    # DBとは違って、こっちはカレントディレクトリでdocker buildしてイメージを作成
+    build: .
+    # コンテナ実行時のコマンドを指定
+    # コンテナが正常終了しなかったときにpidが残っちゃうのであったら削除
+    # Dockerファイルでbundle installするとGemfile変更するたびにインストールしなおしになっちゃうので
+    # 共有フォルダをリンクしてからvendor/bundleにインストール
+    # 最後はrails起動コマンド
+    # 頑張って1行で納めてるけど、別途シェルスクリプトを準備してそれを呼び出したほうが
+    # 可読性は高そう、お好みで
+    command: bash -c "rm -f ./tmp/pids/server.pid && (bundle check || bundle install -j4 --retry 3) && bundle ex rails s -b 0.0.0.0 -p 3000"
+    environment:
+      BUNDLE_PATH: vendor/bundle
+    # ホストOSのカレントディレクトリをコンテナ内の/myappと共有させる
+    volumes:
+      - .:/myapp
+    # ホストOSの3000番ポートとコンテナ内の3000番ポートを設定
+    ports:
+      - "3000:3000"
+    # 以下設定しておくとコンテナ内のホスト名dbがdbコンテナのIPアドレスとして引けるようになる
+    links:
+      - db
+
+# ローカルのボリュームの設定
+volumes:
+  db-data:
+    driver: local
